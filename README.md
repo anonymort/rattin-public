@@ -10,6 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/desktop-linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Linux" />
+  <img src="https://img.shields.io/badge/desktop-macOS-111111?style=for-the-badge&logo=apple&logoColor=white" alt="macOS" />
   <img src="https://img.shields.io/badge/desktop-windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows" />
   <img src="https://img.shields.io/badge/remote-phone-34A853?style=for-the-badge&logo=android&logoColor=white" alt="Remote" />
 </p>
@@ -89,6 +90,35 @@ Download the installer or portable ZIP from the [latest release](https://github.
 - **Rattin-x64-Portable.zip** — extract and run, no install needed
 
 On first launch, go to Settings (gear icon) and enter a free [TMDB API key](https://www.themoviedb.org/settings/api).
+
+### :apple: macOS
+
+macOS support is source-build only for now. The app can be built locally on current Apple Silicon macOS releases, including macOS Tahoe, but there is not yet a signed/notarized release artifact.
+
+Install the native dependencies with Homebrew:
+
+```bash
+brew install cmake pkgconf qt qtwebengine mpv ffmpeg node@20
+```
+
+Then build the app bundle:
+
+```bash
+bash install/build-macos.sh
+open build-macos/Rattin.app
+```
+
+If Finder blocks the bundle on first launch, clear quarantine once:
+
+```bash
+xattr -dr com.apple.quarantine build-macos/Rattin.app
+```
+
+Notes:
+
+- This produces a local `.app` bundle plus a ZIP in the repo root.
+- Packaging for public distribution still needs Apple code signing and notarization.
+- Per-app VPN routing is still Linux-only.
 
 ---
 

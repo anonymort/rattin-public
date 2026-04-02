@@ -13,6 +13,10 @@ PRE-MORTEM.md
 docs/superpowers/
 native-app.tar.gz
 shell/build/
+shell/build-macos/
 build-appimage/
+build-macos/
+compiled/
 *.AppImage
+Rattin-macOS-*.zip
 squashfs-root/

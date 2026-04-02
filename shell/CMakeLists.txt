@@ -58,5 +58,20 @@ if(WIN32)
     set_target_properties(rattin-shell PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
 
+if(APPLE)
+    set_target_properties(rattin-shell PROPERTIES
+        MACOSX_BUNDLE TRUE
+        OUTPUT_NAME "Rattin"
+        MACOSX_BUNDLE_BUNDLE_NAME "Rattin"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.rattin.player"
+        MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
+        BUILD_RPATH "@executable_path/../Frameworks"
+        INSTALL_RPATH "@executable_path/../Frameworks"
+    )
+endif()
+
 # Install
-install(TARGETS rattin-shell DESTINATION bin)
+install(TARGETS rattin-shell
+    BUNDLE DESTINATION .
+    RUNTIME DESTINATION bin)
