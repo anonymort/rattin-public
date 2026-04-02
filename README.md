@@ -93,7 +93,7 @@ On first launch, go to Settings (gear icon) and enter a free [TMDB API key](http
 
 ### :apple: macOS
 
-macOS support is source-build only for now. The app can be built locally on current Apple Silicon macOS releases, including macOS Tahoe, but there is not yet a signed/notarized release artifact.
+macOS support is a local source-build preview for now. The app can be built on current Apple Silicon macOS releases, and the build script produces a self-contained `.app` bundle plus a ZIP for local use. Public signed/notarized release artifacts are not available yet.
 
 Install the native dependencies with Homebrew:
 
@@ -108,6 +108,12 @@ bash install/build-macos.sh
 open build-macos/Rattin.app
 ```
 
+To force a full rebuild:
+
+```bash
+bash install/build-macos.sh --clean
+```
+
 If Finder blocks the bundle on first launch, clear quarantine once:
 
 ```bash
@@ -117,7 +123,9 @@ xattr -dr com.apple.quarantine build-macos/Rattin.app
 Notes:
 
 - This produces a local `.app` bundle plus a ZIP in the repo root.
-- Packaging for public distribution still needs Apple code signing and notarization.
+- The build applies a local ad-hoc code signature so the bundle is structurally valid on macOS, but Gatekeeper will still treat it as an unidentified developer build until it is Developer ID signed and notarized.
+- If macOS still blocks launch after clearing quarantine, use Finder's `Open` action once or allow it from `System Settings -> Privacy & Security`.
+- Settings and saved config live under `~/Library/Application Support/Rattin`.
 - Per-app VPN routing is still Linux-only.
 
 ---

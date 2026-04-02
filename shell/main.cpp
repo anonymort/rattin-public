@@ -25,6 +25,10 @@
 #include "mpvobject.h"
 #include "mpvbridge.h"
 
+#ifndef RATTIN_APP_VERSION
+#define RATTIN_APP_VERSION "1.0.0"
+#endif
+
 static int findFreePort()
 {
     // Bind to port 0, read the OS-assigned port, then close.
@@ -157,7 +161,7 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     app.setApplicationName("Rattin");
     app.setOrganizationName("Rattin");
-    app.setApplicationVersion("1.0.0");
+    app.setApplicationVersion(QStringLiteral(RATTIN_APP_VERSION));
 
     // Set window icon — on Linux, look next to the binary or in standard paths;
     // on Windows the .exe already embeds the icon via rattin.rc.
@@ -165,6 +169,9 @@ int main(int argc, char *argv[])
     {
         QString binDir = QCoreApplication::applicationDirPath();
         QStringList iconPaths = {
+#ifdef Q_OS_MACOS
+            binDir + "/../Resources/Rattin.icns",
+#endif
             binDir + "/../share/icons/hicolor/scalable/apps/rattin.svg",
             binDir + "/../../packaging/linux/rattin.svg",
         };

@@ -8,6 +8,7 @@ SHELL_BUILD_DIR="$REPO_ROOT/shell/build-macos"
 APP_NAME="Rattin"
 APP_BUNDLE="$BUILD_DIR/${APP_NAME}.app"
 ZIP_OUTPUT="$REPO_ROOT/${APP_NAME}-macOS-$(uname -m).zip"
+APP_ICON_NAME="${APP_NAME}.icns"
 
 if [ -t 1 ]; then
     RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -30,12 +31,70 @@ brew_prefix() {
 
 clear_bundle_metadata() {
     local bundle="$1"
-    find "$bundle" -exec sh -c '
-        for path do
-            xattr -d com.apple.FinderInfo "$path" 2>/dev/null || true
-            xattr -d "com.apple.fileprovider.fpfs#P" "$path" 2>/dev/null || true
-        done
-    ' sh {} +
+    xattr -cr "$bundle" 2>/dev/null || true
+    find "$bundle" -name '._*' -delete
+}
+
+create_bundle_icon() {
+    local output_path="$1"
+    local source_svg="$REPO_ROOT/packaging/linux/rattin.svg"
+    local iconset_dir="$BUILD_DIR/${APP_NAME}.iconset"
+    local master_png="$BUILD_DIR/${APP_NAME}-1024.png"
+
+    [ -f "$source_svg" ] || die "App icon source not found at $source_svg"
+
+    rm -rf "$iconset_dir" "$master_png" "$output_path"
+    mkdir -p "$iconset_dir"
+
+    sips -z 1024 1024 -s format png "$source_svg" --out "$master_png" >/dev/null
+
+    for size in 16 32 128 256 512; do
+        sips -z "$size" "$size" "$master_png" \
+            --out "$iconset_dir/icon_${size}x${size}.png" >/dev/null
+
+        local retina_size=$((size * 2))
+        sips -z "$retina_size" "$retina_size" "$master_png" \
+            --out "$iconset_dir/icon_${size}x${size}@2x.png" >/dev/null
+    done
+
+    iconutil --convert icns --output "$output_path" "$iconset_dir"
+
+    rm -rf "$iconset_dir" "$master_png"
+}
+
+stamp_bundle_metadata() {
+    local bundle="$1"
+    local version="$2"
+    local plist="$bundle/Contents/Info.plist"
+
+    [ -f "$plist" ] || die "Info.plist not found at $plist"
+
+    plutil -replace CFBundleIconFile -string "$APP_ICON_NAME" "$plist"
+    plutil -replace CFBundleVersion -string "$version" "$plist"
+    plutil -replace CFBundleShortVersionString -string "$version" "$plist"
+}
+
+sign_bundle() {
+    local bundle="$1"
+    local staging_root
+    local staged_bundle
+
+    staging_root="$(mktemp -d "${TMPDIR:-/tmp}/rattin-sign.XXXXXX")"
+    staged_bundle="$staging_root/${APP_NAME}.app"
+
+    ditto "$bundle" "$staged_bundle"
+    xattr -cr "$staged_bundle" 2>/dev/null || true
+
+    log "Applying local ad-hoc code signature"
+    codesign --force --deep --sign - --timestamp=none "$staged_bundle"
+
+    rm -rf "$bundle"
+    ditto "$staged_bundle" "$bundle"
+    rm -rf "$staging_root"
+
+    if ! codesign --verify --deep --strict --verbose=2 "$bundle" >/dev/null 2>&1; then
+        die "codesign verification failed for $bundle"
+    fi
 }
 
 patch_qtwebengine_helper() {
@@ -84,6 +143,7 @@ This produces:
 
 Notes:
   - This is a source build for your local machine.
+  - The build applies a local ad-hoc signature only.
   - A signed/notarized public release still needs Apple credentials.
   - VPN routing remains Linux-only.
 EOF
@@ -104,6 +164,10 @@ for cmd in brew xcodebuild cmake pkg-config ditto; do
     require_cmd "$cmd"
 done
 
+for cmd in codesign iconutil plutil sips xattr; do
+    require_cmd "$cmd"
+done
+
 NODE20_PREFIX="$(brew_prefix node@20)"
 if [ -n "$NODE20_PREFIX" ] && [ -x "$NODE20_PREFIX/bin/node" ]; then
     NODE_BIN="$NODE20_PREFIX/bin/node"
@@ -120,6 +184,8 @@ fi
 
 NODE_MAJOR="$("$NODE_BIN" -p 'process.versions.node.split(".")[0]')"
 [ "$NODE_MAJOR" -ge 20 ] || die "Node.js 20+ is required."
+APP_VERSION="$("$NODE_BIN" -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).version' "$REPO_ROOT/package.json")"
+[ -n "$APP_VERSION" ] || die "Could not read app version from package.json"
 
 QT_PREFIX="$(brew_prefix qt)"
 QTWEBENGINE_PREFIX="$(brew_prefix qtwebengine)"
@@ -157,6 +223,7 @@ rm -rf "$REPO_ROOT/compiled"
 log "Configuring Qt shell"
 cmake -S "$REPO_ROOT/shell" -B "$SHELL_BUILD_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
+    -DRATTIN_APP_VERSION="$APP_VERSION" \
     -DCMAKE_PREFIX_PATH="$QT_PREFIX;$QTWEBENGINE_PREFIX"
 
 log "Building Qt shell"
@@ -172,8 +239,13 @@ cp -R "$SHELL_BUNDLE" "$APP_BUNDLE"
 APP_RESOURCES="$APP_BUNDLE/Contents/Resources"
 APP_PAYLOAD="$APP_RESOURCES/app"
 RUNTIME_BIN="$APP_RESOURCES/runtime/bin"
+APP_ICON_PATH="$APP_RESOURCES/$APP_ICON_NAME"
 
 mkdir -p "$APP_PAYLOAD" "$RUNTIME_BIN"
+
+log "Generating macOS app icon"
+create_bundle_icon "$APP_ICON_PATH"
+stamp_bundle_metadata "$APP_BUNDLE" "$APP_VERSION"
 
 cp "$REPO_ROOT/compiled/server.js" "$APP_PAYLOAD/"
 cp -R "$REPO_ROOT/compiled/routes" "$APP_PAYLOAD/"
@@ -215,6 +287,8 @@ patch_qtwebengine_helper "$APP_BUNDLE"
 log "Removing stray macOS metadata from bundle"
 clear_bundle_metadata "$APP_BUNDLE"
 
+sign_bundle "$APP_BUNDLE"
+
 log "Creating ZIP archive"
 rm -f "$ZIP_OUTPUT"
 ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$ZIP_OUTPUT"
@@ -230,4 +304,8 @@ Launch locally:
 
 If Finder blocks the app on first launch, clear the quarantine flag:
   xattr -dr com.apple.quarantine "$APP_BUNDLE"
+
+Because this build is not notarized, Gatekeeper may still require:
+  - right-click -> Open once, or
+  - approval in System Settings -> Privacy & Security
 EOF
