@@ -204,7 +204,7 @@ export COPYFILE_DISABLE=1
 
 if [ "$CLEAN" = true ]; then
     log "Cleaning previous macOS build output"
-    rm -rf "$BUILD_DIR" "$SHELL_BUILD_DIR" "$ZIP_OUTPUT" "$REPO_ROOT/compiled"
+    rm -rf "$BUILD_DIR" "$SHELL_BUILD_DIR" "$ZIP_OUTPUT"
 fi
 
 mkdir -p "$BUILD_DIR"
@@ -215,10 +215,6 @@ cd "$REPO_ROOT"
 
 log "Building frontend"
 "$NPM_BIN" run build
-
-log "Compiling backend to JavaScript"
-rm -rf "$REPO_ROOT/compiled"
-"$NPX_BIN" tsc --outDir compiled --noEmit false
 
 log "Configuring Qt shell"
 cmake -S "$REPO_ROOT/shell" -B "$SHELL_BUILD_DIR" \
@@ -247,9 +243,14 @@ log "Generating macOS app icon"
 create_bundle_icon "$APP_ICON_PATH"
 stamp_bundle_metadata "$APP_BUNDLE" "$APP_VERSION"
 
-cp "$REPO_ROOT/compiled/server.js" "$APP_PAYLOAD/"
-cp -R "$REPO_ROOT/compiled/routes" "$APP_PAYLOAD/"
-cp -R "$REPO_ROOT/compiled/lib" "$APP_PAYLOAD/"
+log "Bundling backend with esbuild"
+"$NPX_BIN" esbuild "$REPO_ROOT/server.ts" --bundle --platform=node --format=esm \
+    --outfile="$APP_PAYLOAD/server.js" \
+    --external:utp-native --external:node-datachannel \
+    --external:bufferutil --external:utf-8-validate \
+    --target=node20 \
+    "--banner:js=import{createRequire}from'module';const require=createRequire(import.meta.url);"
+
 cp -R "$REPO_ROOT/public" "$APP_PAYLOAD/"
 cp "$REPO_ROOT/package.json" "$APP_PAYLOAD/"
 cp "$REPO_ROOT/package-lock.json" "$APP_PAYLOAD/"

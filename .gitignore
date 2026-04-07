@@ -16,7 +16,6 @@ shell/build/
 shell/build-macos/
 build-appimage/
 build-macos/
-compiled/
 *.AppImage
 Rattin-macOS-*.zip
 squashfs-root/
